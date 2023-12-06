@@ -1,0 +1,271 @@
+---
+title: "AsianAmFinal"
+author: "misha !"
+date: "2023-11-30"
+output: html_document
+---
+
+load libraries
+```{r}
+library(tidyverse)
+library(plyr)
+library(patchwork)
+library(boot)
+library(dplyr)
+library(ggplot2)
+library(stringr)
+```
+
+
+load data in
+```{r}
+setwd("/Users/michaelokeeffe/Documents/Fall '23 Classes/AsianAm 152/R stuff")
+data1 <- read.csv("/Users/michaelokeeffe/Documents/Fall '23 Classes/AsianAm 152/R stuff/ChoiceTest1.csv")
+data2 <- read.csv("/Users/michaelokeeffe/Documents/Fall '23 Classes/AsianAm 152/R stuff/ChoiceText2.csv")
+
+CombinedData <- bind_rows(
+  select(data1, 1:42),
+  select(data2, 1:42))
+combined_clean_data <- CombinedData[-c(6:7), ]
+combined_clean_data <- combined_clean_data[-2, ]
+
+write.csv(combined_clean_data, "combined clean data.csv")
+```
+
+
+Demographics
+```{r}
+table(combined_clean_data$Q1.1)
+table(combined_clean_data$Q2)
+table(combined_clean_data$Q2b)
+table(combined_clean_data$Q2, combined_clean_data$Q2b)
+
+# Assuming combined_clean_data is your data frame
+result_table <- table(combined_clean_data$Q2, combined_clean_data$Q2b)
+
+# Convert the table to a data frame
+result_df <- as.data.frame.matrix(result_table)
+
+result_df <- result_df[-1, ]
+result_df <- result_df[-1, ]
+result_df <- result_df[-5, ]
+
+result_df <- result_df[ ,-1]
+result_df <- result_df[ ,-1]
+result_df <- result_df[ ,-5]
+
+#Totals
+result_df$Total <- rowSums(result_df)
+result_df$total <- colSums(result_df)
+
+# Assuming your data frame is named df
+ggplot(result_df, aes(x = 1, y = "V1"))
+```
+
+
+Racial Visualizations
+```{r}
+combined_clean_data_graphing <- combined_clean_data[-1, ]
+combined_clean_data_graphing <- combined_clean_data_graphing %>%
+  mutate(Q2 = ifelse(Q2 == "", 'First Nations', Q2))
+
+combined_clean_data_filtered <- combined_clean_data_graphing %>%
+  filter(Q2 != "", Q2b != "", Q4 != "")
+
+# Plotting the filtered data
+ggplot(combined_clean_data_filtered, aes(x = Q2)) +
+  geom_bar(fill = "grey", color = "black") +
+  labs(x = "Race", y = "Count", title = "                                                                     Participant Racial Breakdown") +
+  scale_y_continuous(breaks = seq(1, 10, by = 1)) +
+  theme_minimal()
+
+
+ggplot(combined_clean_data_filtered, aes(x = Q2b)) +
+  geom_bar(fill = "grey", color = "black") +
+  scale_y_continuous(breaks = seq(1, 10, by = 1)) +
+  labs(x = "Race", title = "                                                               Participant's Parner Racial Breakdown") +
+  theme_minimal()
+
+combined_clean_data_filtered <- combined_clean_data_filtered %>%
+  mutate(Q4 = str_replace(Q4, "Black, non-Hispanic", "Black")) %>%
+  mutate(Q4 = str_replace(Q4, "White, non-Hispanic", "White")) %>%
+  mutate(Q4 = str_replace(Q4, "Asian or Pacific Islander", "Asian")) %>%
+  mutate(Q4 = str_replace(Q4, "American Indian or Alaskan Native", "First Nations")) %>%
+  mutate(Q2b = str_replace(Q2b, "I don't have a racial preference", "None")) %>%
+  mutate(Q2b = str_replace(Q2b, "Black, non-Hispanic", "Black")) %>%
+  mutate(Q2b = str_replace(Q2b, "White, non-Hispanic", "White")) %>%
+  mutate(Q2b = str_replace(Q2b, "Asian or Pacific Islander", "Asian")) %>%
+  mutate(Q2b = str_replace(Q2b, "American Indian or Alaskan Native", "First Nations")) %>%
+  mutate(Q2b = str_replace(Q2b, "I don't have a racial preference", "None")) %>%
+  mutate(Q4 = str_replace(Q4, "I don't have a racial preference", "None"))
+
+
+
+combined_clean_data_filtered %>%
+  rowwise() %>%
+  mutate(Q4_list = strsplit(Q4, ",")) %>%
+  unnest(Q4_list) %>%
+  ggplot(aes(x = Q4_list)) +
+  geom_bar(fill = "grey", color = "black") +
+  scale_y_continuous(breaks = seq(1, 13, by = 1)) +
+  labs(x = "Race", y = "Count", title = "                             Participant's Racial Preferences") +
+  theme_minimal()
+
+combined_clean_data_filtered$probability <- mapply(
+  function(q4, q2b) {
+    if ("None" %in% unlist(q4)) return(NA)
+    else if (length(intersect(strsplit(q4, ",")[[1]], strsplit(q2b, ",")[[1]])) == 0) return(0)
+    else return(length(intersect(strsplit(q4, ",")[[1]], strsplit(q2b, ",")[[1]])) / length(union(strsplit(q4, ",")[[1]], strsplit(q2b, ",")[[1]])))
+  },
+  combined_clean_data_filtered$Q4,
+  combined_clean_data_filtered$Q2b
+)
+
+average_probability <- mean(combined_clean_data_filtered$probability, na.rm = TRUE)
+print(average_probability)
+
+table(combined_clean_data_filtered$Q4)
+```
+
+
+
+Opinion Visualizations
+```{r}
+# Question 5
+combined_clean_data_filtered$Q5 <- factor(combined_clean_data_filtered$Q5, levels=c("Strongly disagree", "Disagree", "Somewhat disagree", "Neither agree nor disagree", "Somewhat agree", "Agree", "Strongly agree"))
+
+ggplot(combined_clean_data_filtered, aes(x = Q5)) +
+  geom_bar(fill = "grey", color = "black") +
+  scale_y_continuous(breaks = seq(1, 10, by = 1)) +
+  theme_minimal() +
+  labs(x = "Participant Agreement Level", title = "I wish my partner and I were the same race")
+
+table(combined_clean_data_filtered$Q5)
+
+
+
+# Question 6
+
+# Define the desired levels for the factor variable
+combined_clean_data_filtered$Q6 <- factor(combined_clean_data_filtered$Q6, levels=c("Strongly disagree", "Disagree", "Somewhat disagree", "Neither agree nor disagree", "Somewhat agree", "Agree", "Strongly agree"))
+
+# Plot the data
+ggplot(combined_clean_data_filtered, aes(x = Q6)) +
+  geom_bar(fill = "grey", color = "black") +
+  scale_y_continuous(breaks = seq(0, 10, by = 1)) +
+  coord_cartesian(ylim = c(0, 10)) +
+  theme_minimal() +
+  labs(x = "Participant Agreement Level", title = "There have been times when I have felt like an outsider to my partner or their family") +
+  scale_x_discrete(drop=FALSE)
+
+table(combined_clean_data_filtered$Q6)
+
+
+
+#Question 7
+
+combined_clean_data_filtered$Q7 <- factor(combined_clean_data_filtered$Q7, levels=c("Strongly disagree", "Disagree", "Somewhat disagree", "Neither agree nor disagree", "Somewhat agree", "Agree", "Strongly agree"))
+
+# Plot the data
+ggplot(combined_clean_data_filtered, aes(x = Q7)) +
+  geom_bar(fill = "grey", color = "black") +
+  scale_y_continuous(breaks = seq(0, 10, by = 1)) +
+  coord_cartesian(ylim = c(0, 10)) +
+  theme_minimal() +
+  labs(x = "Participant Agreement Level", title = "I wish my partner and I were the same race") +
+  scale_x_discrete(drop=FALSE)
+
+
+#Question 10
+
+combined_clean_data_filtered$Q10 <- factor(combined_clean_data_filtered$Q10, levels=c("Strongly disagree", "Disagree", "Somewhat disagree", "Neither agree nor disagree", "Somewhat agree", "Agree", "Strongly agree"))
+
+# Plot the data
+ggplot(combined_clean_data_filtered, aes(x = Q10)) +
+  geom_bar(fill = "grey", color = "black") +
+  scale_y_continuous(breaks = seq(0, 10, by = 1)) +
+  coord_cartesian(ylim = c(0, 10)) +
+  theme_minimal() +
+  labs(x = "Participant Agreement Level", title = "It's okay to have a racial fetish--love is love") +
+  scale_x_discrete(drop=FALSE)
+
+
+#Question 11
+
+combined_clean_data_filtered$Q11 <- factor(combined_clean_data_filtered$Q11, levels=c("Strongly disagree", "Disagree", "Somewhat disagree", "Neither agree nor disagree", "Somewhat agree", "Agree", "Strongly agree"))
+
+# Plot the data
+ggplot(combined_clean_data_filtered, aes(x = Q11)) +
+  geom_bar(fill = "grey", color = "black") +
+  scale_y_continuous(breaks = seq(0, 15, by = 1)) +
+  theme_minimal() +
+  labs(x = "Participant Agreement Level", title = "I want my babies to be mixed race") +
+  scale_x_discrete(drop=FALSE)
+
+table(combined_clean_data_filtered$Q11)
+
+
+#Question 12
+
+combined_clean_data_filtered$Q12 <- factor(combined_clean_data_filtered$Q12, levels=c("Strongly disagree", "Disagree", "Somewhat disagree", "Neither agree nor disagree", "Somewhat agree", "Agree", "Strongly agree"))
+
+# Plot the data
+ggplot(combined_clean_data_filtered, aes(x = Q12)) +
+  geom_bar(fill = "grey", color = "black") +
+  scale_y_continuous(breaks = seq(0, 10, by = 1)) +
+  coord_cartesian(ylim = c(0, 10)) +
+  theme_minimal() +
+  labs(x = "Participant Agreement Level", title = "Interracial sex is better than sex with my own race") +
+  scale_x_discrete(drop=FALSE)
+
+table(combined_clean_data_filtered$Q12)
+```
+
+
+Y/N Visualizations
+```{r}
+#Question 3
+
+combined_clean_data_filtered <- combined_clean_data_filtered %>%
+  mutate(Q3 = str_replace(Q3, "Yes - please explain", "Yes"))
+
+ggplot(combined_clean_data_filtered, aes(x = Q3)) +
+  geom_bar(fill = "grey", color = "black", width = .5) +
+  scale_y_continuous(breaks = seq(0, 20, by = 1)) +
+  coord_cartesian(ylim = c(0, 20)) +
+  theme_minimal() +
+  labs(x = "Participant Response", title = "Have there been any times when you have been unintentionally racist towards your partner?", y = "Number of Participants")
+
+
+#Question 8
+
+combined_clean_data_filtered <- combined_clean_data_filtered %>%
+  mutate(Q8 = str_replace(Q8, "Yes - please explain", "Yes")) %>%
+  mutate(Q8 = str_replace(Q8, "No - please explain", "No")) %>%
+  filter(Q8 != "" & !is.na(Q8))
+  
+
+ggplot(combined_clean_data_filtered, aes(x = Q8)) +
+  geom_bar(fill = "grey", color = "black", width = .5) +
+  scale_y_continuous(breaks = seq(0, 20, by = 1)) +
+  coord_cartesian(ylim = c(0, 20)) +
+  theme_minimal() +
+  labs(x = "Participant Response", title = "Do you think that being linked to another race has benefits?", y = "Number of Participants")
+
+table(combined_clean_data_filtered$Q8)
+
+
+# Question 9
+
+combined_clean_data_filtered <- combined_clean_data_filtered %>%
+  mutate(Q9 = str_replace(Q9, "Yes - explain", "Yes")) %>%
+  mutate(Q9 = str_replace(Q9, "No - explain", "No"))
+
+ggplot(combined_clean_data_filtered, aes(x = Q9)) +
+  geom_bar(fill = "grey", color = "black", width = .5) +
+  scale_y_continuous(breaks = seq(0, 20, by = 1)) +
+  coord_cartesian(ylim = c(0, 20)) +
+  theme_minimal() +
+  labs(x = "Participant Response", title = "Do you ever feel like you’ve betrayed your own race by dating outside of your own race?", y = "Number of Participants")
+```
+
